@@ -6,12 +6,16 @@ import itertools
 import datetime
 import time
 
+from tensorboardX import SummaryWriter
+
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
+from torchvision.utils import make_grid
 
 from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.autograd import Variable
+import torchvision.utils as vutils
 
 from models import *
 from datasets import *
@@ -24,7 +28,7 @@ import torch
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='epoch to start training from')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
-parser.add_argument('--dataset_name', type=str, default="monet2photo", help='name of the dataset')
+parser.add_argument('--dataset_name', type=str, default="summer2winter_yosemite", help='name of the dataset')
 parser.add_argument('--batch_size', type=int, default=1, help='size of the batches')
 parser.add_argument('--lr', type=float, default=0.0002, help='adam: learning rate')
 parser.add_argument('--b1', type=float, default=0.5, help='adam: decay of first order momentum of gradient')
@@ -37,8 +41,12 @@ parser.add_argument('--channels', type=int, default=3, help='number of image cha
 parser.add_argument('--sample_interval', type=int, default=100, help='interval between sampling images from generators')
 parser.add_argument('--checkpoint_interval', type=int, default=-1, help='interval between saving model checkpoints')
 parser.add_argument('--n_residual_blocks', type=int, default=9, help='number of residual blocks in generator')
+parser.add_argument('--save_path', type=str, default='test_main', help='test number')
 opt = parser.parse_args()
 print(opt)
+
+writer = SummaryWriter(opt.save_path)
+writer.add_text('opt', str(opt), 0)
 
 # Create sample and checkpoint directories
 os.makedirs('images/%s' % opt.dataset_name, exist_ok=True)
@@ -127,11 +135,18 @@ def sample_images(batches_done):
     fake_A = G_BA(real_B)
     img_sample = torch.cat((real_A.data, fake_B.data,
                             real_B.data, fake_A.data), 0)
-    save_image(img_sample, 'images/%s/%s.png' % (opt.dataset_name, batches_done), nrow=5, normalize=True)
 
+    #save_image(img_sample, 'images/%s/%s.png' % (opt.dataset_name, batches_done), nrow=5, normalize=True)
+
+    vutils.save_image(img_sample, 'images/%s/%s.png' % (opt.dataset_name, batches_done), nrow=5, normalize=True)
+    writer.add_image('fake_samples', vutils.make_grid(img_sample, nrow=5, normalize=True), niter)
 # ----------
 #  Training
 # ----------
+
+
+
+
 
 prev_time = time.time()
 for epoch in range(opt.epoch, opt.n_epochs):
@@ -234,6 +249,13 @@ for epoch in range(opt.epoch, opt.n_epochs):
                                                         loss_D.item(), loss_G.item(),
                                                         loss_GAN.item(), loss_cycle.item(),
                                                         loss_identity.item(), time_left))
+        niter = epoch * len(dataloader) + i
+        writer.add_scalar('Loss/D', loss_D.item(), niter)
+        writer.add_scalar('Loss/G', loss_G.item(), niter)
+        writer.add_scalar('loss_GAN', loss_GAN.item(), niter)
+        writer.add_scalar('Loss Cycle', loss_cycle.item(), niter)
+        writer.add_scalar('loss Identity', loss_identity.item(), niter)
+
 
         # If at sample interval save image
         if batches_done % opt.sample_interval == 0:
@@ -251,3 +273,5 @@ for epoch in range(opt.epoch, opt.n_epochs):
         torch.save(G_BA.state_dict(), 'saved_models/%s/G_BA_%d.pth' % (opt.dataset_name, epoch))
         torch.save(D_A.state_dict(), 'saved_models/%s/D_A_%d.pth' % (opt.dataset_name, epoch))
         torch.save(D_B.state_dict(), 'saved_models/%s/D_B_%d.pth' % (opt.dataset_name, epoch))
+
+

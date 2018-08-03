@@ -9,6 +9,7 @@ import numpy as np
 
 from torchvision.utils import save_image
 
+
 class ReplayBuffer():
     def __init__(self, max_size=50):
         assert (max_size > 0), 'Empty buffer or trying to create a black hole. Be careful.'
